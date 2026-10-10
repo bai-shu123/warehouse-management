@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { AlertTriangle, LockKeyhole } from 'lucide-react'
+import { AlertTriangle, LockKeyhole, Search } from 'lucide-react'
 import { Modal } from './components'
 import { supabase } from './lib/supabase'
 import type { ExchangeRate, InventoryRow, Locale, OperationRow, Product, Translator, TransportRow, Warehouse } from './types'
@@ -101,6 +101,7 @@ export function RateModal({ t, onClose, onSaved, userId }: BaseProps & { userId:
 export function InboundModal({ t, onClose, onSaved, warehouses, products, rates }: BaseProps & { warehouses: Warehouse[]; products: Product[]; rates: ExchangeRate[] }) {
   const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id ?? '')
   const [productId, setProductId] = useState(products[0]?.id ?? '')
+  const [productQuery, setProductQuery] = useState('')
   const [date, setDate] = useState(almatyDate())
   const [packages, setPackages] = useState('')
   const [pieces, setPieces] = useState('')
@@ -109,26 +110,32 @@ export function InboundModal({ t, onClose, onSaved, warehouses, products, rates 
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const filteredProducts = useMemo(() => {
+    const query = productQuery.trim().toLocaleLowerCase()
+    if (!query) return products
+    return products.filter((product) => `${product.sku} ${product.name ?? ''}`.toLocaleLowerCase().includes(query))
+  }, [productQuery, products])
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!supabase) return
-    if (!warehouseId || !productId || !rateId) { setError(t('requiredFields')); return }
-    if (Number(packages) <= 0 || Number(pieces) <= 0) { setError(t('invalidQuantity')); return }
+    if (!warehouseId || !productId || !packages.trim()) { setError(t('requiredFields')); return }
+    if (Number(packages) <= 0 || Number(pieces || 0) < 0) { setError(t('invalidQuantity')); return }
+    if (cost.trim() && Number(cost) < 0) { setError(t('invalidCost')); return }
     setBusy(true); setError('')
-    const result = await supabase.rpc('create_inbound', { p_warehouse_id: warehouseId, p_product_id: productId, p_received_date: date, p_packages: Number(packages), p_pieces: Number(pieces), p_unit_cost_rmb_per_piece: Number(cost), p_fx_snapshot_id: rateId, p_note: note, p_idempotency_key: crypto.randomUUID() })
+    const result = await supabase.rpc('create_inbound', { p_warehouse_id: warehouseId, p_product_id: productId, p_received_date: date || null, p_packages: Number(packages), p_pieces: pieces.trim() ? Number(pieces) : null, p_unit_cost_rmb_per_piece: cost.trim() ? Number(cost) : null, p_fx_snapshot_id: rateId || null, p_note: note, p_idempotency_key: crypto.randomUUID() })
     if (result.error) setError(result.error.message); else await onSaved(t('inboundSaved'))
     setBusy(false)
   }
   return <Modal title={t('addInbound')} onClose={onClose} wide><form onSubmit={submit}><div className="form-grid">
     <label>{t('warehouse')}<select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>{warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
-    <label>{t('product')}<select value={productId} onChange={(e) => setProductId(e.target.value)} required>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} {p.name ?? ''}</option>)}</select></label>
-    <label>{t('effectiveDate')}<input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></label>
-    <label>{t('rateHistory')}<select value={rateId} onChange={(e) => setRateId(e.target.value)} required>{rates.map((r) => <option key={r.id} value={r.id}>{r.effective_date} · {r.kzt_per_usd} KZT/USD · {r.cny_per_usd} CNY/USD</option>)}</select></label>
+    <label className="full-field">{t('product')}<div className="input-with-icon"><Search size={16} aria-hidden="true" /><input type="search" value={productQuery} onChange={(e) => setProductQuery(e.target.value)} placeholder={t('search')} aria-label={t('search')} /></div><select value={productId} onChange={(e) => setProductId(e.target.value)} required>{filteredProducts.map((p) => <option key={p.id} value={p.id}>{p.sku} {p.name ?? ''}</option>)}</select>{products.length > 0 && filteredProducts.length === 0 && <span className="form-help">{t('noProductMatches')}</span>}</label>
+    <label>{t('effectiveDate')}<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+    <label>{t('rateHistory')}<select value={rateId} onChange={(e) => setRateId(e.target.value)}><option value="">{t('notSelected')}</option>{rates.map((r) => <option key={r.id} value={r.id}>{r.effective_date} · {r.kzt_per_usd} KZT/USD · {r.cny_per_usd} CNY/USD</option>)}</select></label>
     <label>{t('packageCount')}<input type="number" min="0.001" step="0.001" value={packages} onChange={(e) => setPackages(e.target.value)} required /></label>
-    <label>{t('pieceCount')}<input type="number" min="1" step="1" value={pieces} onChange={(e) => setPieces(e.target.value)} required /></label>
-    <label>{t('purchasePrice')}<input type="number" min="0" step="0.0001" value={cost} onChange={(e) => setCost(e.target.value)} required /></label>
+    <label>{t('pieceCount')}<input type="number" min="0" step="1" value={pieces} onChange={(e) => setPieces(e.target.value)} /></label>
+    <label>{t('purchasePrice')}<input type="number" min="0" step="0.0001" value={cost} onChange={(e) => setCost(e.target.value)} /></label>
     <label>{t('note')}<input value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    {rates.length === 0 && <div className="inline-alert error full-field">{t('addRate')}</div>}{error && <div className="inline-alert error full-field">{error}</div>}
-  </div><Footer t={t} onClose={onClose} label={t('saveInbound')} busy={busy} disabled={!rates.length || !products.length || !warehouses.length} /></form></Modal>
+    <p className="form-help full-field">{t('inboundFieldsHint')}</p>{error && <div className="inline-alert error full-field">{error}</div>}
+  </div><Footer t={t} onClose={onClose} label={t('saveInbound')} busy={busy} disabled={!products.length || !warehouses.length} /></form></Modal>
 }
 
 export function IssueModal({ t, onClose, onSaved, inventory }: BaseProps & { inventory: InventoryRow[] }) {

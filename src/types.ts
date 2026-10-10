@@ -33,9 +33,9 @@ export type InventoryRow = {
 export type CostRow = InventoryRow & {
   unit_cost_rmb_per_piece: number
   value_rmb: number
-  historical_value_kzt: number
-  current_value_kzt: number
-  current_rate_date: string
+  historical_value_kzt: number | null
+  current_value_kzt: number | null
+  current_rate_date: string | null
 }
 
 export type TransportRow = {
