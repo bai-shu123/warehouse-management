@@ -10,14 +10,16 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-没有配置 Supabase 时，界面使用演示数据运行；配置 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY` 后，前端会启用 Supabase 连接层。
+未配置 Supabase 时，界面会明确显示配置错误，不会再回退到演示数据。配置 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY` 后，登录、查询和所有库存操作都直接连接 Supabase。
 
 ## Supabase
 
-1. 在 Supabase 项目 SQL Editor 中执行 `supabase/migrations/0001_initial.sql`。
-2. 在 Authentication 中创建管理员账号。
-3. 为管理员补充 `profiles` 和 `user_roles` 数据。
-4. 创建 Storage bucket `product-images`，并按迁移文件中的策略限制上传。
+1. 新项目依次执行 `supabase/migrations/0001_initial.sql` 和 `supabase/migrations/0002_operational_workflows.sql`。
+2. 已执行第一份迁移的项目，只需继续执行 `0002_operational_workflows.sql`。
+3. 在应用登录页创建第一个账号；第一个账号自动初始化为管理员，后续账号默认为仓库员工。
+4. 管理员可在“人员与权限”页面调整已注册账号的角色、启用状态和库房分配。
+
+前端只使用 publishable/anon key。任何 service role key 都不得写入浏览器环境或 GitHub Pages。
 
 ## GitHub Pages
 
