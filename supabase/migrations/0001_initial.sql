@@ -9,7 +9,7 @@ create type public.transport_status as enum ('draft', 'in_transit', 'partial_rec
 create type public.operation_type as enum ('inbound', 'issue', 'transfer_dispatch', 'transfer_receipt', 'rollback', 'unrollback');
 create type public.task_status as enum ('open', 'resolved');
 
-create table public.profiles (
+create table public.warehouse_profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null,
   locale text not null default 'zh-CN' check (locale in ('zh-CN', 'ru', 'kk')),
@@ -19,7 +19,7 @@ create table public.profiles (
 );
 
 create table public.user_roles (
-  user_id uuid primary key references public.profiles(id) on delete cascade,
+  user_id uuid primary key references public.warehouse_profiles(id) on delete cascade,
   role public.app_role not null,
   created_at timestamptz not null default now()
 );
@@ -34,29 +34,29 @@ create table public.warehouses (
 );
 
 create table public.warehouse_members (
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  user_id uuid not null references public.warehouse_profiles(id) on delete cascade,
   warehouse_id uuid not null references public.warehouses(id) on delete cascade,
   primary key (user_id, warehouse_id)
 );
 
-create table public.products (
+create table public.warehouse_products (
   id uuid primary key default gen_random_uuid(),
   sku text not null unique,
   name text,
   archived_at timestamptz,
-  created_by uuid references public.profiles(id),
+  created_by uuid references public.warehouse_profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create table public.product_images (
   id uuid primary key default gen_random_uuid(),
-  product_id uuid not null references public.products(id) on delete cascade,
+  product_id uuid not null references public.warehouse_products(id) on delete cascade,
   storage_path text not null unique,
   alt_text text,
   sort_order integer not null default 0,
   is_primary boolean not null default false,
-  created_by uuid references public.profiles(id),
+  created_by uuid references public.warehouse_profiles(id),
   created_at timestamptz not null default now()
 );
 
@@ -70,7 +70,7 @@ create table public.exchange_rates (
   cny_per_usd numeric(18, 6) not null check (cny_per_usd > 0),
   kzt_per_usd numeric(18, 6) not null check (kzt_per_usd > 0),
   note text,
-  entered_by uuid not null references public.profiles(id),
+  entered_by uuid not null references public.warehouse_profiles(id),
   created_at timestamptz not null default now()
 );
 
@@ -88,7 +88,7 @@ create table public.transport_orders (
   expected_arrival_at timestamptz,
   completed_at timestamptz,
   note text,
-  created_by uuid not null references public.profiles(id),
+  created_by uuid not null references public.warehouse_profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (
@@ -100,7 +100,7 @@ create table public.transport_orders (
 
 create table public.inventory_batches (
   id uuid primary key default gen_random_uuid(),
-  product_id uuid not null references public.products(id),
+  product_id uuid not null references public.warehouse_products(id),
   source_transport_id uuid references public.transport_orders(id),
   received_date date not null,
   unit_cost_rmb_per_piece numeric(18, 4) not null check (unit_cost_rmb_per_piece >= 0),
@@ -108,14 +108,14 @@ create table public.inventory_batches (
   total_received_packages numeric(18, 3) not null default 0 check (total_received_packages >= 0),
   total_received_pieces integer not null default 0 check (total_received_pieces >= 0),
   note text,
-  created_by uuid not null references public.profiles(id),
+  created_by uuid not null references public.warehouse_profiles(id),
   created_at timestamptz not null default now()
 );
 
 create table public.transport_lines (
   id uuid primary key default gen_random_uuid(),
   transport_id uuid not null references public.transport_orders(id) on delete cascade,
-  product_id uuid not null references public.products(id),
+  product_id uuid not null references public.warehouse_products(id),
   source_batch_id uuid references public.inventory_batches(id),
   destination_batch_id uuid references public.inventory_batches(id),
   planned_packages numeric(18, 3) not null check (planned_packages > 0),
@@ -130,7 +130,7 @@ create table public.transport_receipts (
   received_packages numeric(18, 3) not null check (received_packages > 0),
   received_pieces integer not null check (received_pieces > 0),
   received_at timestamptz not null,
-  received_by uuid not null references public.profiles(id),
+  received_by uuid not null references public.warehouse_profiles(id),
   note text,
   created_at timestamptz not null default now()
 );
@@ -142,7 +142,7 @@ create table public.transport_exceptions (
   reported_packages numeric(18, 3) not null default 0,
   reported_pieces integer not null default 0,
   reason text,
-  resolved_by uuid references public.profiles(id),
+  resolved_by uuid references public.warehouse_profiles(id),
   resolved_at timestamptz,
   resolution_note text,
   created_at timestamptz not null default now()
@@ -152,10 +152,10 @@ create table public.stock_operations (
   id uuid primary key default gen_random_uuid(),
   operation_type public.operation_type not null,
   warehouse_id uuid references public.warehouses(id),
-  product_id uuid references public.products(id),
+  product_id uuid references public.warehouse_products(id),
   transport_id uuid references public.transport_orders(id),
   occurred_at timestamptz not null,
-  created_by uuid not null references public.profiles(id),
+  created_by uuid not null references public.warehouse_profiles(id),
   note text,
   reversal_of_operation_id uuid references public.stock_operations(id),
   idempotency_key uuid not null unique default gen_random_uuid(),
@@ -188,7 +188,7 @@ create index stock_movements_balance_idx
 create table public.reversal_links (
   original_operation_id uuid not null references public.stock_operations(id),
   reversal_operation_id uuid not null unique references public.stock_operations(id),
-  reversed_by uuid not null references public.profiles(id),
+  reversed_by uuid not null references public.warehouse_profiles(id),
   reason text not null check (length(trim(reason)) >= 3),
   created_at timestamptz not null default now(),
   primary key (original_operation_id, reversal_operation_id)
@@ -200,8 +200,8 @@ create table public.admin_tasks (
   transport_id uuid references public.transport_orders(id),
   operation_id uuid references public.stock_operations(id),
   status public.task_status not null default 'open',
-  assigned_to uuid references public.profiles(id),
-  resolved_by uuid references public.profiles(id),
+  assigned_to uuid references public.warehouse_profiles(id),
+  resolved_by uuid references public.warehouse_profiles(id),
   resolved_at timestamptz,
   created_at timestamptz not null default now(),
   check (transport_id is not null or operation_id is not null)
@@ -209,7 +209,7 @@ create table public.admin_tasks (
 
 create table public.audit_log (
   id bigint generated always as identity primary key,
-  actor_id uuid references public.profiles(id),
+  actor_id uuid references public.warehouse_profiles(id),
   action text not null,
   entity_type text not null,
   entity_id uuid,
@@ -266,7 +266,7 @@ select
   sum(sm.piece_delta) as available_pieces
 from public.stock_movements sm
 join public.inventory_batches b on b.id = sm.batch_id
-join public.products p on p.id = b.product_id
+join public.warehouse_products p on p.id = b.product_id
 group by sm.warehouse_id, sm.batch_id, b.product_id, p.sku, p.name, b.received_date;
 
 create view public.v_operator_stock as
@@ -301,7 +301,7 @@ from public.stock_operations o
 join public.stock_operation_lines l on l.operation_id = o.id
 join public.warehouses w on w.id = o.warehouse_id
 join public.inventory_batches b on b.id = l.batch_id
-join public.products p on p.id = b.product_id
+join public.warehouse_products p on p.id = b.product_id
 where public.current_user_role() in ('admin', 'finance');
 
 create view public.v_admin_batch_costs as
@@ -557,11 +557,11 @@ begin
 end;
 $$;
 
-alter table public.profiles enable row level security;
+alter table public.warehouse_profiles enable row level security;
 alter table public.user_roles enable row level security;
 alter table public.warehouses enable row level security;
 alter table public.warehouse_members enable row level security;
-alter table public.products enable row level security;
+alter table public.warehouse_products enable row level security;
 alter table public.product_images enable row level security;
 alter table public.exchange_rates enable row level security;
 alter table public.inventory_batches enable row level security;
@@ -576,9 +576,9 @@ alter table public.reversal_links enable row level security;
 alter table public.admin_tasks enable row level security;
 alter table public.audit_log enable row level security;
 
-create policy profiles_read_self_or_admin on public.profiles
+create policy profiles_read_self_or_admin on public.warehouse_profiles
   for select to authenticated using (id = auth.uid() or public.is_admin());
-create policy profiles_admin_write on public.profiles
+create policy profiles_admin_write on public.warehouse_profiles
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy roles_read_self_or_admin on public.user_roles
   for select to authenticated using (user_id = auth.uid() or public.is_admin());
@@ -592,9 +592,9 @@ create policy members_read_self_or_admin on public.warehouse_members
   for select to authenticated using (user_id = auth.uid() or public.is_admin());
 create policy members_admin_write on public.warehouse_members
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
-create policy products_read_authenticated on public.products
+create policy products_read_authenticated on public.warehouse_products
   for select to authenticated using (true);
-create policy products_admin_write on public.products
+create policy products_admin_write on public.warehouse_products
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy images_read_authenticated on public.product_images
   for select to authenticated using (true);
