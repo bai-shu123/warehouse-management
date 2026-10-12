@@ -67,7 +67,7 @@ export function ProductModal({ t, onClose, onSaved, userId }: BaseProps & { user
       <label>{t('productNumber')}<input value={sku} onChange={(e) => setSku(e.target.value)} required /></label>
       <label>{t('styleName')}<input value={name} onChange={(e) => setName(e.target.value)} /></label>
       <label className="full-field file-field">{t('productImage')}<input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] ?? null)} /></label>
-      {error && <div className="inline-alert error full-field">{error}</div>}
+      {error && <div className="inline-alert error full-field" role="alert">{error}</div>}
     </div><Footer t={t} onClose={onClose} label={t('saveProduct')} busy={busy} /></form></Modal>
 }
 
@@ -94,7 +94,7 @@ export function RateModal({ t, onClose, onSaved, userId }: BaseProps & { userId:
     <label>{t('cnyPerUsd')}<input type="number" min="0.000001" step="0.000001" value={cny} onChange={(e) => setCny(e.target.value)} required /></label>
     <label>{t('kztPerUsd')}<input type="number" min="0.000001" step="0.000001" value={kzt} onChange={(e) => setKzt(e.target.value)} required /></label>
     <label className="full-field">{t('note')}<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    {error && <div className="inline-alert error full-field">{error}</div>}
+    {error && <div className="inline-alert error full-field" role="alert">{error}</div>}
   </div><Footer t={t} onClose={onClose} label={t('saveRate')} busy={busy} /></form></Modal>
 }
 
@@ -134,7 +134,7 @@ export function InboundModal({ t, onClose, onSaved, warehouses, products, rates 
     <label>{t('pieceCount')}<input type="number" min="0" step="1" value={pieces} onChange={(e) => setPieces(e.target.value)} /></label>
     <label>{t('purchasePrice')}<input type="number" min="0" step="0.0001" value={cost} onChange={(e) => setCost(e.target.value)} /></label>
     <label>{t('note')}<input value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    <p className="form-help full-field">{t('inboundFieldsHint')}</p>{error && <div className="inline-alert error full-field">{error}</div>}
+    <p className="form-help full-field">{t('inboundFieldsHint')}</p>{error && <div className="inline-alert error full-field" role="alert">{error}</div>}
   </div><Footer t={t} onClose={onClose} label={t('saveInbound')} busy={busy} disabled={!products.length || !warehouses.length} /></form></Modal>
 }
 
@@ -166,7 +166,7 @@ export function IssueModal({ t, onClose, onSaved, inventory }: BaseProps & { inv
     <label>{t('recipient')}<input value={recipient} onChange={(e) => setRecipient(e.target.value)} required /></label>
     <label>{t('issueDate')}<input type="datetime-local" value={dateTime} onChange={(e) => setDateTime(e.target.value)} required /></label>
     <label className="full-field">{t('note')}<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    <p className="form-help full-field">{t('issueQuantityHint')}</p>{error && <div className="inline-alert error full-field">{error}</div>}
+    <p className="form-help full-field">{t('issueQuantityHint')}</p>{error && <div className="inline-alert error full-field" role="alert">{error}</div>}
   </div><Footer t={t} onClose={onClose} label={t('saveIssue')} busy={busy} disabled={!selected} /></form></Modal>
 }
 
@@ -211,7 +211,7 @@ export function TransportModal({ t, onClose, onSaved, warehouses, products, inve
     <label>{t('shippedAt')}<input type="datetime-local" value={shippedAt} onChange={(e) => setShippedAt(e.target.value)} required /></label>
     <label>{t('expectedArrival')}<input type="datetime-local" value={expectedAt} onChange={(e) => setExpectedAt(e.target.value)} /></label>
     <label className="full-field">{t('note')}<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    <p className="form-help full-field">{type === 'domestic_to_external' ? t('externalInboundHint') : t('transferHint')}</p>{error && <div className="inline-alert error full-field">{error}</div>}
+    <p className="form-help full-field">{type === 'domestic_to_external' ? t('externalInboundHint') : t('transferHint')}</p>{error && <div className="inline-alert error full-field" role="alert">{error}</div>}
   </div><Footer t={t} onClose={onClose} label={t('createTransport')} busy={busy} disabled={!canSubmit} /></form></Modal>
 }
 
@@ -237,7 +237,7 @@ export function ReceiveModal({ t, onClose, onSaved, row }: BaseProps & { row: Tr
     <label>{t('receivedPieces')}<input type="number" min="1" max={row.remaining_pieces} step="1" value={pieces} onChange={(e) => setPieces(e.target.value)} required /></label>
     <label>{t('effectiveDate')}<input type="datetime-local" value={dateTime} onChange={(e) => setDateTime(e.target.value)} required /></label>
     <label>{t('note')}<input value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    {error && <div className="inline-alert error full-field">{error}</div>}
+    {error && <div className="inline-alert error full-field" role="alert">{error}</div>}
   </div><Footer t={t} onClose={onClose} label={t('receive')} busy={busy} /></form></Modal>
 }
 
@@ -263,6 +263,6 @@ export function RollbackModal({ t, locale, onClose, onSaved, row, user }: BasePr
     <label className="full-field">{t('rollbackReason')}<textarea value={reason} onChange={(e) => setReason(e.target.value)} minLength={3} required /></label>
     <label>{t('confirmPhrase')}<input value={confirmation} onChange={(e) => setConfirmation(e.target.value)} placeholder={phrase} required /></label>
     <label>{t('adminPassword')}<div className="input-with-icon"><LockKeyhole size={15} /><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div></label>
-    {error && <div className="inline-alert error full-field">{error}</div>}
+    {error && <div className="inline-alert error full-field" role="alert">{error}</div>}
   </div><Footer t={t} onClose={onClose} label={t('confirmRollback')} busy={busy} danger disabled={confirmation !== phrase || reason.trim().length < 3 || !password} /></form></Modal>
 }

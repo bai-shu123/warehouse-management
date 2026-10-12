@@ -10,6 +10,7 @@ import type { AdminTask, AppData, CostRow, ExchangeRate, InventoryRow, Locale, O
 
 const emptyData: AppData = { warehouses: [], products: [], inventory: [], costs: [], transports: [], operations: [], rates: [], users: [], tasks: [] }
 const errorText = (error: unknown) => error instanceof Error ? error.message : typeof error === 'object' && error && 'message' in error ? String(error.message) : String(error)
+const pageIds: Page[] = ['overview', 'inventory', 'inbound', 'transport', 'issue', 'history', 'products', 'rates', 'users']
 
 const navFor = (role: Role): Array<{ id: Page; icon: typeof LayoutDashboard; key: string }> => {
   const base: Array<{ id: Page; icon: typeof LayoutDashboard; key: string }> = [
@@ -23,7 +24,10 @@ function App() {
   const [locale, setLocale] = useState<Locale>('zh-CN')
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
-  const [page, setPage] = useState<Page>('overview')
+  const [page, setPage] = useState<Page>(() => {
+    const requested = window.location.hash.slice(1) as Page
+    return pageIds.includes(requested) ? requested : 'overview'
+  })
   const [menuOpen, setMenuOpen] = useState(false)
   const [role, setRole] = useState<Role | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -43,6 +47,16 @@ function App() {
     supabase.auth.getSession().then(({ data: auth }) => { if (mounted) { setSession(auth.session); setAuthReady(true) } })
     const listener = supabase.auth.onAuthStateChange((_event, auth) => { if (mounted) setSession(auth) })
     return () => { mounted = false; listener.data.subscription.unsubscribe() }
+  }, [])
+
+  useEffect(() => { document.documentElement.lang = locale }, [locale])
+  useEffect(() => {
+    const onHashChange = () => {
+      const requested = window.location.hash.slice(1) as Page
+      if (pageIds.includes(requested)) { setPage(requested); setMenuOpen(false) }
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
   async function loadData() {
@@ -114,15 +128,17 @@ function App() {
   const pageTitle = t(page)
 
   if (!isSupabaseConfigured) return <><div className="config-screen"><div className="config-card"><Boxes size={28} /><h1>{t('configurationError')}</h1><p>{t('configurationHint')}</p></div></div></>
-  if (!authReady) return <div className="loading-screen"><span className="loading-orbit" />{t('loading')}</div>
+  if (!authReady) return <div className="loading-screen" role="status" aria-live="polite"><span className="loading-orbit" aria-hidden="true" />{t('loading')}</div>
   if (!session) return <AuthScreen locale={locale} setLocale={setLocale} t={t} />
-  if (!role || loading && !data.warehouses.length) return <div className="loading-screen"><span className="loading-orbit" />{t('loadingData')}</div>
+  if (!role || loading && !data.warehouses.length) return <div className="loading-screen" role="status" aria-live="polite"><span className="loading-orbit" aria-hidden="true" />{t('loadingData')}</div>
 
-  function openPage(next: Page) { setPage(next); setMenuOpen(false) }
+  function openPage(next: Page) { setPage(next); setMenuOpen(false); window.location.hash = next }
   return <div className="app-shell">
-    <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}><div className="brand-lockup"><div className="brand-mark"><Boxes size={20} /></div><div><strong>{t('appName')}</strong><span>{t('appSub')}</span></div></div><div className="sidebar-section-label">{t('today')}</div><nav className="nav-list">{nav.map((item) => { const Icon = item.icon; return <button className={`nav-item ${page === item.id ? 'active' : ''}`} key={item.id} onClick={() => openPage(item.id)}><Icon size={17} /><span>{t(item.key)}</span></button> })}</nav><div className="sidebar-footer"><div className="sync-status"><span className="status-dot online" />Supabase · {role === 'admin' ? t('admin') : role === 'finance' ? t('finance') : t('operator')}</div><small className="muted-caption">{role === 'admin' ? t('adminOnly') : t('financeNoCost')}</small></div></aside>
-    <main className="main-area"><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">{menuOpen ? <X size={19} /> : <Menu size={19} />}</button><strong>{t('appName')}</strong><span className="slash">/</span><span>{pageTitle}</span></div><div className="topbar-actions"><label className="warehouse-select"><span className="select-label">{t('warehouse')}</span><select value={warehouseFilter} onChange={(e) => { setWarehouseFilter(e.target.value); openPage('inventory') }}><option value="all">{t('allWarehouses')}</option>{data.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label><label className="language-select"><Languages size={15} /><select value={locale} onChange={(e) => void changeLocale(e.target.value as Locale)}><option value="zh-CN">中文</option><option value="ru">Русский</option><option value="kk">Қазақша</option></select></label><button className="icon-button" onClick={() => void loadData()} aria-label={t('refresh')}><RefreshCw size={17} /></button><div className="user-chip"><span className="avatar">{displayName.slice(0, 1).toUpperCase()}</span><span className="user-copy"><strong>{displayName}</strong><small>{t(role === 'warehouse_operator' ? 'operator' : role)}</small></span><button className="text-button compact" onClick={() => void signOut()}>{t('signOut')}</button></div></div></header>
-      <div className="content-wrap"><section className="page-intro"><div><p className="eyebrow">{new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Almaty' }).format(new Date())}</p><h1>{pageTitle}</h1></div></section>{error && <div className="inline-alert error database-alert"><span>{t('databaseError')}: {error}</span><button className="icon-button" onClick={() => setError('')}><X size={15} /></button></div>}{flash && <div className="inline-alert success database-alert">{flash}</div>}{loading && <div className="loading-strip"><RefreshCw size={14} />{t('loadingData')}</div>}
+    <a className="skip-link" href="#main-content">{t('skipToContent')}</a>
+    <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} aria-label={t('appName')}><div className="brand-lockup"><div className="brand-mark"><Boxes size={20} aria-hidden="true" /></div><div><strong>{t('appName')}</strong><span>{t('appSub')}</span></div></div><div className="sidebar-section-label">{t('today')}</div><nav className="nav-list">{nav.map((item) => { const Icon = item.icon; return <button className={`nav-item ${page === item.id ? 'active' : ''}`} aria-current={page === item.id ? 'page' : undefined} key={item.id} onClick={() => openPage(item.id)}><Icon size={17} aria-hidden="true" /><span>{t(item.key)}</span></button> })}</nav><div className="sidebar-footer"><div className="sync-status"><span className="status-dot online" aria-hidden="true" /><span translate="no">Supabase</span> · {role === 'admin' ? t('admin') : role === 'finance' ? t('finance') : t('operator')}</div><small className="muted-caption">{role === 'admin' ? t('adminOnly') : t('financeNoCost')}</small></div></aside>
+    {menuOpen && <button type="button" className="sidebar-scrim" onClick={() => setMenuOpen(false)} aria-label={t('close')} />}
+    <main className="main-area" id="main-content"><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" onClick={() => setMenuOpen(!menuOpen)} aria-label={menuOpen ? t('close') : t('menu')} aria-expanded={menuOpen}>{menuOpen ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}</button><strong>{t('appName')}</strong><span className="slash" aria-hidden="true">/</span><span>{pageTitle}</span></div><div className="topbar-actions"><label className="warehouse-select"><span className="select-label">{t('warehouse')}</span><select name="warehouseFilter" value={warehouseFilter} onChange={(e) => { setWarehouseFilter(e.target.value); openPage('inventory') }}><option value="all">{t('allWarehouses')}</option>{data.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label><label className="language-select"><Languages size={15} aria-hidden="true" /><select name="locale" aria-label={t('language')} value={locale} onChange={(e) => void changeLocale(e.target.value as Locale)}><option value="zh-CN">中文</option><option value="ru">Русский</option><option value="kk">Қазақша</option></select></label><button className="icon-button" onClick={() => void loadData()} aria-label={t('refresh')} disabled={loading}><RefreshCw size={17} aria-hidden="true" /></button><div className="user-chip"><span className="avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span><span className="user-copy"><strong>{displayName}</strong><small>{t(role === 'warehouse_operator' ? 'operator' : role)}</small></span><button className="text-button compact" onClick={() => void signOut()}>{t('signOut')}</button></div></div></header>
+      <div className="content-wrap"><section className="page-intro"><div><p className="eyebrow">{new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Almaty' }).format(new Date())}</p><h1>{pageTitle}</h1></div></section>{error && <div className="inline-alert error database-alert" role="alert"><span>{t('databaseError')}: {error}</span><button className="icon-button" onClick={() => setError('')} aria-label={t('close')}><X size={15} aria-hidden="true" /></button></div>}{flash && <div className="inline-alert success database-alert" role="status" aria-live="polite">{flash}</div>}{loading && <div className="loading-strip" role="status"><RefreshCw size={14} aria-hidden="true" />{t('loadingData')}</div>}
         {page === 'overview' && <OverviewPage data={data} role={role} locale={locale} t={t} navigate={openPage} onTaskSaved={announce} />}
         {page === 'inventory' && <InventoryPage data={data} role={role} locale={locale} t={t} warehouseFilter={warehouseFilter} setWarehouseFilter={setWarehouseFilter} />}
         {page === 'inbound' && role === 'admin' && <InboundPage data={data} locale={locale} t={t} onOpen={() => setModal('inbound')} />}
